@@ -1,7 +1,7 @@
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version "1.4.20"
-    id "org.jetbrains.kotlin.plugin.allopen" version "1.4.20"
-    id 'io.quarkus'
+    id 'org.jetbrains.kotlin.jvm' version "1.4.21"
+    id "org.jetbrains.kotlin.plugin.allopen" version "1.4.21"
+    id 'io.quarkus' version '1.12.1.Final'
 }
 
 repositories {
