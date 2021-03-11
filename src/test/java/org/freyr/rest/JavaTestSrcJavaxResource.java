@@ -6,9 +6,7 @@ import javax.ws.rs.PathParam;
 //import org.jboss.resteasy.annotations.jaxrs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.ext.Provider;
 
-@Provider
 @Path("/java-test-src-javax")
 public class JavaTestSrcJavaxResource {
     @GET

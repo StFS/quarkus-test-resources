@@ -1,59 +1,122 @@
 # quarkus-test-resources project
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+This is a simple Quarkus project, created to demonstrate weird behaviour of the `@PathParam` annotation class
+from the JBoss RESTEasy project.
 
-If you want to learn more about Quarkus, please visit its website: https://quarkus.io/ .
+It contains a single unit test class that runs a few tests and demonstrates the problem.
 
-## Running the application in dev mode
+## Background and Problem Description
 
-You can run your application in dev mode that enables live coding using:
-```shell script
-./gradlew quarkusDev
+### Background
+
+#### @PathParam
+
+The `@PathParam` annotation is used to wire a parameter to a function in such a way that it gets its value from
+the URL path of the resource called:
+
+```java
+@Path("/foo")
+public class MyResource {
+    @GET
+    @Path("bar/{myPathParam}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String check(@javax.ws.rs.PathParam("myPathParam") String myPathParam) {
+        return "Parameter value: " + myPathParam;
+    }
+}
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at http://localhost:8080/q/dev/.
+In the above case, when called with `http://<fqdn>/foo/bar/fluff`, the value of the `myPathParam` method parameter would
+be `fluff`.
 
-## Packaging and running the application
+The above use-case uses the standard `javax.ws.rs.PathParam` annotation. However, there is another implementation of
+this from the JBoss RestEASY project, namely `org.jboss.resteasy.annotations.jaxrs.PathParam`.
 
-The application can be packaged using:
-```shell script
-./gradlew build
-```
-It produces the `quarkus-run.jar` file in the `build/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `build/quarkus-app/lib/` directory.
+One of the benefits of using the RestEASY version of `@PathParam` is that it allows you to skip passing the URL pattern
+variable name to the annotation, given that the method variable name matches the URL pattern variable name.
 
-If you want to build an _über-jar_, execute the following command:
-```shell script
-./gradlew build -Dquarkus.package.type=uber-jar
-```
+In other words, the following should be equivalent to the code above:
 
-The application is now runnable using `java -jar build/quarkus-app/quarkus-run.jar`.
-
-## Creating a native executable
-
-You can create a native executable using: 
-```shell script
-./gradlew build -Dquarkus.package.type=native
+```java
+@Path("/foo")
+public class MyResource {
+    @GET
+    @Path("bar/{myPathParam}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String check(@org.jboss.resteasy.annotations.jaxrs.PathParam String myPathParam) {
+        return "Parameter value: " + myPathParam;
+    }
+}
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using: 
+#### Location of a Resource Class
+
+I discovered the problem when I was trying to create a resource class and place it in my `src/test/` directory instead
+of having it as part of the main project in `src/main/`. The reason for doing this was to create a simple resource
+class that was not a part of the project that was being made in order to test a `ContainerRequestFilter` class.
+
+In other words, having a resource class in your `src/test/` directory does have a valid use.
+
+### The Problem
+
+There seem to be some issues with using the RestEASY implementation of `@PathParam` and these problems have to do with: 
+1) the programming language being used (Kotling vs. Java)
+2) the source directory (main vs. test) that the resource 
+classes are located in.
+
+Below is a matrix summarizing the behavior of the combination of programming language used, location of class and 
+which implementation of `@PathParam` is used.
+
+<table>
+<thead>
+  <tr>
+    <th></th>
+    <th></th>
+    <th colspan="2">Location of resource class</th>
+  </tr>
+  <tr>
+    <th>Language</th>
+    <th>@PathParam<br>implementation</th>
+    <th>src/main</th>
+    <th>src/test</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td rowspan="2">Java</td>
+    <td>javax</td>
+    <td bgcolor="LightGreen">Works as expected</td>
+    <td bgcolor="LightYellow">resource cannot be found (404)</td>
+  </tr>
+  <tr>
+    <td>jboss</td>
+    <td bgcolor="LightCoral">@PathParam method variable value is null</td>
+    <td bgcolor="LightYellow">resource cannot be found (404)</td>
+  </tr>
+  <tr>
+    <td rowspan="2">Kotlin</td>
+    <td>javax</td>
+    <td bgcolor="LightGreen">Works as expected</td>
+    <td bgcolor="LightGreen">Works as expected</td>
+  </tr>
+  <tr>
+    <td>jboss</td>
+    <td bgcolor="LightGreen">Works as expected</td>
+    <td bgcolor="LightCoral">@PathParam method variable value is null</td>
+  </tr>
+</tbody>
+</table>
+
+There are two issues:
+1) Java resource classes that are located in the `src/test` directory do not seem to get deployed properly when running
+Quarkus tests. This is probably a Quarkus issue.
+2) The JBoss implementation does not seem to work when using Java and only works in Kotlin if the resource class is
+located in `src/main`.
+
+#### Running the Unit Tests
+
+You can run the unit tests that demonstrate the problems described above with:
+
 ```shell script
-./gradlew build -Dquarkus.package.type=native -Dquarkus.native.container-build=true
+./gradlew test
 ```
-
-You can then execute your native executable with: `./build/quarkus-test-resources-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult https://quarkus.io/guides/gradle-tooling.
-
-## Related guides
-
-- Kotlin ([guide](https://quarkus.io/guides/kotlin)): Write your services in Kotlin
-- RESTEasy JAX-RS ([guide](https://quarkus.io/guides/rest-json)): REST endpoint framework implementing JAX-RS and more
-
-## Provided examples
-
-### RESTEasy JAX-RS example
-
-REST is easy peasy with this Hello World RESTEasy resource.
-
-[Related guide section...](https://quarkus.io/guides/getting-started#the-jax-rs-resources)
